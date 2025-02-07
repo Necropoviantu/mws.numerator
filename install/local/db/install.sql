@@ -1,0 +1,7 @@
+CREATE TABLE IF NOT EXISTS mws_numerator_client (
+        ID INT NOT NULL AUTO_INCREMENT,
+        COMPANY_ID INT NOT NULL,
+        NUMERATOR_ID INT NOT NULL,
+        CURRENT_NUM  INT NOT NULL,
+        PRIMARY KEY (`ID`)
+    );
