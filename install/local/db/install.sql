@@ -4,4 +4,6 @@ CREATE TABLE IF NOT EXISTS mws_numerator_client (
         NUMERATOR_ID INT NOT NULL,
         CURRENT_NUM  INT NOT NULL,
         PRIMARY KEY (`ID`)
-    );
+ );
+
+

@@ -23,7 +23,6 @@ class MwsNumerator extends Numerator
        if($numerator['ID'] <= 0){
             $numerator = $this->createNumerator($this->COMPANY);
        }
-       \Bitrix\Main\Diag\Debug::writeToFile(print_r($numerator,true),"","_DOC_log.log");
        $numberGenerator = \Bitrix\Main\Numerator\Numerator::load($numerator['NUMERATOR_ID']);
        $number = $numberGenerator->getNext();
         NumeratorClientTable::update($numerator['ID'],[
@@ -70,7 +69,7 @@ class MwsNumerator extends Numerator
           'NUMERATOR_ID'=>$result->getId(),
           'CURRENT_NUM'=>0
           ]);
-        $numer = NumeratorClientTable::getById($num->getId());
+      $numer = NumeratorClientTable::getById($num->getId());
 
         return $numer;
   }

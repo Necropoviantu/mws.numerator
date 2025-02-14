@@ -54,7 +54,7 @@ class  mws_numerator extends CModule
         $this->InstallDB();
         $this->installFiles();
         $this->InstallEvents();
-       // $this->installHlblock();
+        $this->installHlblock();
         \Bitrix\Main\ModuleManager::registerModule($this->MODULE_ID);
         return true;
     }
@@ -97,6 +97,14 @@ class  mws_numerator extends CModule
             }
         return true;
     }
+
+    public function installHlblock()
+    {
+        require_once(\Bitrix\Main\Application::getDocumentRoot() . '/local/modules/mws.numerator/classes/hlblockTemplate.php');
+        hlblockTemplate::hlblockAdd();
+
+        return true;
+    }
     // деинсталяциионный блок
     public function DoUninstall()
     {
@@ -112,6 +120,7 @@ class  mws_numerator extends CModule
         }
         $this->UnInstallFiles();
         $this->UnInstallEvents();
+        $this->UnInstallHlblock();
         \Bitrix\Main\ModuleManager::unRegisterModule($this->MODULE_ID);
         \Bitrix\Main\Config\Option::delete("mws.numerator");
         return true;
@@ -143,5 +152,15 @@ class  mws_numerator extends CModule
 
 
         return true;
+    }
+
+
+    public  function unInstallHlblock()
+    {
+        require_once(\Bitrix\Main\Application::getDocumentRoot() . '/local/modules/mws.numerator/classes/hlblockTemplate.php');
+        hlblockTemplate::hlblockDelete();
+
+        return true;
+
     }
 }
