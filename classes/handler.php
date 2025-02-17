@@ -1,5 +1,5 @@
 <?php
-
+use Bitrix\Main\Config\Option;
 use Bitrix\Main\Numerator\Numerator;
 use Mywebstor\Numerator\MwsNumerator;
 use Mywebstor\Numerator\Client\NumeratorClientTable;
@@ -10,131 +10,160 @@ use Bitrix\Main\SystemException;
 class MwsHandlerDocs {
     static function _onBeforeProcessDocument($event)
     {
-        \Bitrix\Main\Diag\Debug::writeToFile(print_r("Создание",true),"","_DOC_log.log");
-        $application = \Bitrix\Main\Application::getInstance();
-        Bitrix\Main\Loader::includeModule('documentgenerator');
-        Bitrix\Main\Loader::includeModule('mws.numerator');
-        Bitrix\Main\Loader::includeModule('crm');
+        $active = Option::get('mws.numerator', 'active_doc_nemerator', '');
+        if($active == 'Y') {
+            \Bitrix\Main\Diag\Debug::writeToFile(print_r("Создание", true), "", "_DOC_log.log");
+            $application = \Bitrix\Main\Application::getInstance();
+            Bitrix\Main\Loader::includeModule('documentgenerator');
+            Bitrix\Main\Loader::includeModule('mws.numerator');
+            Bitrix\Main\Loader::includeModule('crm');
 
 
+            $document = $event->getParameter('document');
+            $template = $document->getTemplate();
+            $templateID = $template->ID;
+            if ($template && $template->MODULE_ID == 'crm') {
 
-        $document = $event->getParameter('document');
-        $template = $document->getTemplate();
-        $templateID  =$template->ID;
-        if($template && $template->MODULE_ID == 'crm'){
+                $provider = $document->getProvider();
+                $ownerType = $provider->getCrmOwnerType();
+                if ($ownerType == 2) {
+                    $dealId = $provider->getSource();
 
-            $provider = $document->getProvider();
-            $ownerType = $provider->getCrmOwnerType();
-            if($ownerType == 2){
-                $dealId = $provider->getSource();
+                    $DealRes = Bitrix\Crm\DealTable::query()
+                        ->where('ID', $dealId)
+                        ->setSelect(array("ID", "CATEGORY_ID", 'COMPANY_ID'))
+                        ->setLimit(1)
+                        ->fetchObject();
 
-                $DealRes = Bitrix\Crm\DealTable::query()
-                    ->where('ID',$dealId)
-                    ->setSelect(array("ID","CATEGORY_ID",'COMPANY_ID'))
-                    ->setLimit(1)
-                    ->fetchObject();
+                    if ($DealRes) {
 
-                if($DealRes){
+                        $LKtoUpdate = COption::GetOptionString("mws.numerator", "mws_numerator_template_document", 0);
+                        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+                        $hlEntity = $hlblockTable::getList(array(
+                            "filter" => ['UF_TEMPLATE_CATEGORY' => $DealRes['CATEGORY_ID']],
+                            "select" => ['*'],
+                        ));
+                        $tempCat = [];
 
-                    \Bitrix\Main\Diag\Debug::writeToFile(print_r($DealRes->get('COMPANY_ID'),true),"","_DOC_log.log");
-                    if(!$DealRes->get('COMPANY_ID')){
+                        while ($row = $hlEntity->fetch()) {
+                            $tempCat = explode(', ', $row['UF_TEMPLATE_TEMPLATES']);
 
-                        throw new Bitrix\Main\SystemException('Не указана компания  ошибка создания документа');
+
+                        }
+                        \Bitrix\Main\Diag\Debug::writeToFile(print_r($tempCat, true), "", "_DOC_log.log");
+                        if (count($tempCat) > 0) {
+
+                            if (in_array($templateID, $tempCat)) {
+                                \Bitrix\Main\Diag\Debug::writeToFile(print_r($DealRes->get('COMPANY_ID'), true), "", "_DOC_log.log");
+                                if (!$DealRes->get('COMPANY_ID')) {
+
+                                    throw new Bitrix\Main\SystemException('Не указана компания  ошибка создания документа');
+                                }
+
+                                $num = new \Mywebstor\Numerator\MwsNumerator($DealRes->get('COMPANY_ID'));
+
+                                $document->setValues(['DocumentNumber' => $num->init()]);
+                            }
+                        }
+
                     }
-
-                    $num = new \Mywebstor\Numerator\MwsNumerator($DealRes->get('COMPANY_ID'));
-
-                    $document->setValues(['DocumentNumber' => $num->init()]);
-
-
-
                 }
             }
+
         }
-
-
 
     }
     static function _OnAfterDelete($fields){
-
-        \Bitrix\Main\Diag\Debug::writeToFile(print_r( 'Удаление',true),"","_DOC_log.log");
-        global $APPLICATION;
-        Bitrix\Main\Loader::includeModule('documentgenerator');
-        Bitrix\Main\Loader::includeModule('mws.numerator');
-        Bitrix\Main\Loader::includeModule('crm');
-        $document = $fields->getParameter('document');
-
-
-        $template = $document->getTemplate();
-        if($template && $template->MODULE_ID == 'crm'){
-            $provider = $document->getProvider();
-            $ownerType = $provider->getCrmOwnerType();
-            if($ownerType == 2){
-                $dealId = $provider->getSource();
-                $DealRes = Bitrix\Crm\DealTable::query()
-                    ->where('ID',$dealId)
-                    ->setSelect(array("ID","CATEGORY_ID",'COMPANY_ID'))
-                    ->setLimit(1)
-                    ->fetchObject();
+        $active = Option::get('mws.numerator', 'active_doc_nemerator', '');
+        if($active == 'Y') {
+            \Bitrix\Main\Diag\Debug::writeToFile(print_r('Удаление', true), "", "_DOC_log.log");
+            global $APPLICATION;
+            Bitrix\Main\Loader::includeModule('documentgenerator');
+            Bitrix\Main\Loader::includeModule('mws.numerator');
+            Bitrix\Main\Loader::includeModule('crm');
+            $document = $fields->getParameter('document');
 
 
-                if($DealRes){
-
-                    if(!$DealRes->get('COMPANY_ID')){
-                        throw new Bitrix\Main\SystemException('Не указана компания  ошибка создания документа');
-                    }
-                    $getNumerator = Mywebstor\Numerator\Client\NumeratorClientTable::query()
-                        ->where('COMPANY_ID',$DealRes->get('COMPANY_ID'))
-                        ->setSelect(array("*"))
+            $template = $document->getTemplate();
+            if ($template && $template->MODULE_ID == 'crm') {
+                $provider = $document->getProvider();
+                $ownerType = $provider->getCrmOwnerType();
+                if ($ownerType == 2) {
+                    $dealId = $provider->getSource();
+                    $DealRes = Bitrix\Crm\DealTable::query()
+                        ->where('ID', $dealId)
+                        ->setSelect(array("ID", "CATEGORY_ID", 'COMPANY_ID'))
                         ->setLimit(1)
                         ->fetchObject();
-                    $getAllDealsCompany = \Bitrix\Crm\DealTable::getList([
-                        "filter"=>['COMPANY_ID'=>$getNumerator->get('COMPANY_ID')],
-                        'select'=>['ID']
-                    ]);
-                    $dealIds =[];
 
-                    while ($deal = $getAllDealsCompany->fetch()) {
-                        $dealIds[] = $deal['ID'];
+
+                    if ($DealRes) {
+                        $LKtoUpdate = COption::GetOptionString("mws.numerator", "mws_numerator_template_document", 0);
+                        $hlblockTable = \Bitrix\Highloadblock\HighloadBlockTable::compileEntity($LKtoUpdate)->getDataClass();
+                        $hlEntity = $hlblockTable::getList(array(
+                            "filter" => ['UF_TEMPLATE_CATEGORY' => $DealRes['CATEGORY_ID']],
+                            "select" => ['*'],
+                        ));
+                        $tempCat = [];
+
+                        while ($row = $hlEntity->fetch()) {
+                            $tempCat = explode(', ', $row['UF_TEMPLATE_TEMPLATES']);
+
+
+                        }
+                        \Bitrix\Main\Diag\Debug::writeToFile(print_r($tempCat, true), "", "_DOC_log.log");
+                        if (count($tempCat) > 0) {
+                            if (!$DealRes->get('COMPANY_ID')) {
+                                throw new Bitrix\Main\SystemException('Не указана компания  ошибка создания документа');
+                            }
+
+                            $getNumerator = Mywebstor\Numerator\Client\NumeratorClientTable::query()
+                                ->where('COMPANY_ID', $DealRes->get('COMPANY_ID'))
+                                ->setSelect(array("*"))
+                                ->setLimit(1)
+                                ->fetchObject();
+                            $getAllDealsCompany = \Bitrix\Crm\DealTable::getList([
+                                "filter" => ['COMPANY_ID' => $getNumerator->get('COMPANY_ID')],
+                                'select' => ['ID']
+                            ]);
+                            $dealIds = [];
+
+                            while ($deal = $getAllDealsCompany->fetch()) {
+                                $dealIds[] = $deal['ID'];
+                            }
+                            //Забираем все документы созданные по сделке с темплейтами
+
+                            $docs = \Bitrix\DocumentGenerator\Model\DocumentTable::getlist([
+                                'order' => ['ID' => 'DESC'],
+                                'filter' => [
+                                    //TEMPLATE_ID=>[]
+                                    '=PROVIDER' => mb_strtolower(Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class),
+                                    'VALUE' => $dealIds,
+                                ],
+                                'select' => ['ID', 'NUMBER', 'TEMPLATE_ID']
+                            ])->fetchAll();
+                            \Bitrix\Main\Diag\Debug::writeToFile(print_r($docs, true), "", "_DOC_log.log");
+
+                            if ($docs[0]['ID'] == $document->ID) {
+
+                                $numerator = Numerator::load($getNumerator->get("NUMERATOR_ID"));
+                                $numerator->setNextSequentialNumber($docs[0]['NUMBER']);
+                                $num = NumeratorClientTable::update($getNumerator->get('ID'), [
+                                    'CURRENT_NUM' => $docs[0]['NUMBER']
+                                ]);
+
+                            }
+
+                        }
                     }
-                    //Забираем все документы созданные по сделке с темплейтами
-
-                    $docs = \Bitrix\DocumentGenerator\Model\DocumentTable::getlist([
-                        'order'=>['ID'=>'DESC'],
-                        'filter'=>[
-                            //TEMPLATE_ID=>[]
-                            '=PROVIDER' => mb_strtolower(Bitrix\Crm\Integration\DocumentGenerator\DataProvider\Deal::class),
-                            'VALUE'=>$dealIds,
-                        ],
-                        'select'=>['ID','NUMBER','TEMPLATE_ID']
-                    ])->fetchAll();
-                    \Bitrix\Main\Diag\Debug::writeToFile(print_r(   $docs,true),"","_DOC_log.log");
-
-                    if($docs[0]['ID'] == $document->ID){
-
-                        $numerator = Numerator::load($getNumerator->get("NUMERATOR_ID"));
-                        $numerator->setNextSequentialNumber($docs[0]['NUMBER']);
-                        $num = NumeratorClientTable::update( $getNumerator->get('ID') ,[
-                            'CURRENT_NUM'=>$docs[0]['NUMBER']
-                        ]);
-
-                    }
-
                 }
 
             }
 
+
         }
-
-
-
-
-
-
-
-
-
     }
+
     //Сложный нумератор
     static function setNumberOnStage($fields)
     {

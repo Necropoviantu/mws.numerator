@@ -13,16 +13,14 @@ class MwsNumeratorRest extends IRestService
                 //TODO активаторы
                 "mwsnumerator.getActivateNumeratorTemplate"=>array(__CLASS__,"getActivateNumeratorTemplate"),
                 "mwsnumerator.setActivateNumeratorTemplate"=>array(__CLASS__,"setActivateNumeratorTemplate"),
-
-
-
-
                 //TODO темплейты
                 "mwsnumerator.getTemplatesDoc" => array(__CLASS__, "getTemplatesDoc"),
                 "mwsnumerator.hlblockTemplate.create" => array(__CLASS__, "hlblockTemplateCreate"),
                 "mwsnumerator.hlblockTemplate.update" => array(__CLASS__, "hlblockTemplateUpdate"),
                 "mwsnumerator.hlblockTemplate.getList" => array(__CLASS__, "hlblockTemplategetList"),
                 "mwsnumerator.hlblockTemplate.delete" => array(__CLASS__, "hlblockTemplateDelete"),
+                //TODO настройка через списки
+                "mwsnumerator.getAllLists" => array(__CLASS__, "getAllLists"),
 
             ),
         );
@@ -137,6 +135,22 @@ class MwsNumeratorRest extends IRestService
         }else{
             return 'ok';
         }
+    }
+
+    public static function getAllLists($query, $nav, \CRestServer $server)
+    {
+        $res = \CIBlock::GetList(
+            Array(),
+            Array(
+                'TYPE'=>'lists',
+            ), true
+        );
+        $result = [];
+        while($ar_res = $res->Fetch())
+        {
+            $result[] =["ID"=>$ar_res['ID'],"NAME"=>$ar_res['NAME']];
+        }
+        return $result;
     }
 
 }
