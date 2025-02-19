@@ -34,7 +34,9 @@ public static function getMap() {
                 'default_value' => '',
                 'title' => Loc::getMessage('MWS_NUMERATOR_CLIENT_COMPANY_ID'),
             )
-        ),    new IntegerField('NUMERATOR_ID',
+        ),
+
+        new IntegerField('NUMERATOR_ID',
             array(
                 'required' => true,
                 'default_value' => '',

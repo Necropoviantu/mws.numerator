@@ -5,5 +5,21 @@ CREATE TABLE IF NOT EXISTS mws_numerator_client (
         CURRENT_NUM  INT NOT NULL,
         PRIMARY KEY (`ID`)
  );
+CREATE TABLE IF NOT EXISTS mws_numerator_all (
+        ID INT NOT NULL AUTO_INCREMENT,
+        NUMERATOR_ID INT NOT NULL,
+        CITY_ID INT NOT NULL,
+        CLIENT_TYPE INT NOT NULL,
+        CURRENT_NUM  INT NOT NULL,
+        PRIMARY KEY (`ID`)
+);
 
+CREATE TABLE IF NOT EXISTS mws_numerator_phone (
+           ID INT NOT NULL AUTO_INCREMENT,
+           NUMERATOR_ID INT NOT NULL,
+           CITY_ID INT NOT NULL,
+           OPS_TYPE INT NOT NULL,
+           CURRENT_NUM  INT NOT NULL,
+           PRIMARY KEY (`ID`)
+    );
 

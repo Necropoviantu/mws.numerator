@@ -31,14 +31,21 @@ class  mws_numerator extends CModule
             "TO_FUNCTION" => "_OnAfterDelete",
             "VERSION" => "2"
         ),
+        array(
+            "FROM_MODULE" => "crm",
+            "FROM_EVENT" => "OnAfterCrmDealUpdate",
+            "TO_CLASS" => "MwsHandlerDocs",
+            "TO_FUNCTION" => "setNumberOnStage",
+            "VERSION" => "1"
+        ),
     );
 
     public function __construct(){
         $this->MODULE_GROUP_RIGHTS = "N";
         $this->MODULE_NAME = Loc::getMessage("MWS_NUMERATOR_MODULE_NAME");
         $this->MODULE_DESCRIPTION = Loc::getMessage("MWS_NUMERATOR_MODULE_DESCRIPTION");
-        $this->PARTNER_NAME = Loc::getMessage("MWS_NUMERATOR_PARTNER_NAME");
-        $this->PARTNER_URI = Loc::getMessage("MWS_NUMERATOR_PARTNER_URI");
+        $this->PARTNER_NAME = Loc::getMessage("MWS_NUMERATOR_MODULE_PARTNER_NAME");
+        $this->PARTNER_URI = Loc::getMessage("MWS_NUMERATOR_MODULE_PARTNER_URI");
 
         $arModuleVersion = array();
         include __DIR__ . "/version.php";
@@ -51,14 +58,14 @@ class  mws_numerator extends CModule
     //инсталяционный блок
     public function DoInstall()
     {
-        $this->InstallDB();
+        $this->installDB();
         $this->installFiles();
         $this->InstallEvents();
         $this->installHlblock();
         \Bitrix\Main\ModuleManager::registerModule($this->MODULE_ID);
         return true;
     }
-    public function InstallDB()
+    public function installDB()
     {
         global $DB, $APPLICATION;
         $this->errors = $DB->RunSQLBatch(__DIR__ . '/local/db/install.sql');
@@ -112,7 +119,7 @@ class  mws_numerator extends CModule
 
         $step = intval($step);
         if ($step < 2) {
-            $APPLICATION->IncludeAdminFile(Loc::getMessage("MWS_SED_FDOC_MODULE_UNINSTALL_TITLE", array("#MODULE_NAME#" => $this->MODULE_NAME)), __DIR__ . "/unstep1.php");
+            $APPLICATION->IncludeAdminFile(Loc::getMessage("MWS_NUMERATOR_MODULE_UNINSTALL_TITLE", array("#MODULE_NAME#" => $this->MODULE_NAME)), __DIR__ . "/unstep1.php");
         } elseif ($step === 2) {
             if (!array_key_exists('savedata', $_REQUEST) || $_REQUEST['savedata'] != 'Y') {
                 $this->UnInstallDB();

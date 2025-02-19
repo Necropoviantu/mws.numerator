@@ -1,56 +1,58 @@
 <?php
-
 namespace Mywebstor\Numerator;
 
 use Bitrix\Main\Numerator\Numerator;
 use Bitrix\Main\Numerator\Generator;
-use Mywebstor\Numerator\Client\NumeratorClientTable;
-class MwsNumerator extends Numerator
+use Mywebstor\Numerator\Client\NumeratorPhoneTable;
+class MwsNumeratorPhone extends Numerator
 {
-    public  $COMPANY;
-    public function __construct($company)
+    public $CITY;
+    public $TYPE;
+
+    public function __construct($CITY , $TYPE)
     {
-        $this->COMPANY = $company;
+        $this->CITY = $CITY;
+        $this->TYPE = $TYPE;
     }
 
     public function init()
     {
-        if($this->COMPANY <= 0){
+        if($this->CITY <= 0){
+            return false;
+        }
+        if($this->TYPE <= 0){
             return false;
         }
 
-        $numerator = $this->checkNumerator($this->COMPANY);
-        if($numerator['ID'] <= 0){
-            $numerator = $this->createNumerator($this->COMPANY);
+        $numerator = $this->checkNumerator($this->CITY, $this->TYPE);
+        if( !$numerator && $numerator['ID'] <= 0){
+            $numerator = $this->createNumerator();
         }
-
-        \Bitrix\Main\Diag\Debug::writeToFile(print_r($numerator,true),"","_DOC_log.log");
-
-
         $numberGenerator = \Bitrix\Main\Numerator\Numerator::load($numerator['NUMERATOR_ID']);
         $number = $numberGenerator->getNext();
-        NumeratorClientTable::update($numerator['ID'],[
+        NumeratorPhoneTable::update($numerator['ID'],[
             'CURRENT_NUM'=>$number,
         ]);
-
 
         return $number;
 
     }
-    private function checkNumerator($company)
-    {
-        \Bitrix\Main\Loader::includeModule('mws.numerator');
 
-        $numerator =  NumeratorClientTable::getList(['filter' => ['COMPANY_ID' => $company]])->fetch();
-
+    private function checkNumerator($city, $type){
+        \Bitrix\Main\Loader::includeModule("mws.numerator");
+        $numerator =  NumeratorPhoneTable::getlist(['filter'=>[
+            'CITY_ID'=>$city,
+            'OPS_TYPE'=>$type
+        ]])->fetch();
         return $numerator;
 
-
     }
-    private function createNumerator($company){
+
+    private function createNumerator($city, $type)
+    {
         $config = [
             Numerator::getType() => [
-                'name' => 'Клиент '.$company,
+                'name' => 'Клиент '.$city,
                 'template' => '{NUMBER}',
             ],
             \Bitrix\Main\Numerator\Generator\RandomNumberGenerator::getType() => [
@@ -69,19 +71,23 @@ class MwsNumerator extends Numerator
         /** @var \Bitrix\Main\Entity\AddResult $result **/
         $result = $numerator->save();
 
-
-        $num = NumeratorClientTable::add([
-            'COMPANY_ID' => $company,
+        $num = NumeratorPhoneTable::add([
+            'CITY_ID' => $city,
             'NUMERATOR_ID'=>$result->getId(),
+            'OPS_TYPE'=>$type,
             'CURRENT_NUM'=>0
         ]);
 
-
-
-        $numer = NumeratorClientTable::getById($num->getId())->fetch();
+        $numer = NumeratorPhoneTable::getById($num->getId());
 
         return $numer;
+
+
+
     }
+
+
+
 
 
 }
