@@ -1,4 +1,5 @@
 <?php
+
 use Bitrix\Main\Config\Option;
 use Bitrix\Main\Loader;
 use Bitrix\Main\Numerator\Numerator;
@@ -20,7 +21,6 @@ class MwsNumeratorRest extends IRestService
                 "mwsnumerator.setActivateNumeratorService"=>array(__CLASS__,"setActivateNumeratorService"),
                 "mwsnumerator.getActivateNumeratorPhone"=>array(__CLASS__,"getActivateNumeratorPhone"),
                 "mwsnumerator.setActivateNumeratorPhone"=>array(__CLASS__,"setActivateNumeratorPhone"),
-
                 //TODO темплейты
                 "mwsnumerator.getTemplatesDoc" => array(__CLASS__, "getTemplatesDoc"),
                 "mwsnumerator.hlblockTemplate.create" => array(__CLASS__, "hlblockTemplateCreate"),
@@ -40,7 +40,7 @@ class MwsNumeratorRest extends IRestService
                 "mwsnumerator.HasNumeratorOnCity" => array(__CLASS__, "HasNumeratorOnCity"),
                 "mwsnumerator.CityList" => array(__CLASS__, "CityList"),
                 "mwsnumerator.createNumeratorOnCity" => array(__CLASS__, "createNumeratorOnCity"),
-
+                "mwsnumerator.deleteNumeratorAll" => array(__CLASS__, "deleteNumeratorAll"),
 
                 "mwsnumerator.generatedPhoneNums" => array(__CLASS__, "generatedPhoneNums"),
                 "mwsnumerator.getPhoneNumerators" => array(__CLASS__, "getPhoneNumerators"),
@@ -50,13 +50,16 @@ class MwsNumeratorRest extends IRestService
                 "mwsnumerator.createNumeratorOnPhone" => array(__CLASS__, "createNumeratorOnPhone"),
 
 
+                "mwsnumerator.deleteNumerator" => array(__CLASS__, "deleteNumerator"),
+
+
             ),
         );
     }
     public static function getActivateNumeratorTemplate($query, $nav, \CRestServer $server)
     {
         $active = Option::get('mws.numerator', 'active_doc_numerator', '');
-            return $active;
+        return $active;
     }
     public static function setActivateNumeratorTemplate($query, $nav, \CRestServer $server)
     {
@@ -269,7 +272,7 @@ class MwsNumeratorRest extends IRestService
 
             ]
         ));
-      $cityes =  $res->fetchAll();
+        $cityes =  $res->fetchAll();
 
         $res = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['type'])->getEntityDataClass()::getList(array(
             'filter' => [
@@ -280,52 +283,52 @@ class MwsNumeratorRest extends IRestService
             'select' => [
                 "ID",
                 "NAME",
-                          ]
+            ]
         ));
         $types =  $res->fetchAll();
 
-      foreach ($cityes as $city){
-          foreach ($types as $type){
-              $numerator =  NumeratorAllTable::getlist(['filter'=>[
-                  'CITY_ID'=>$city['ID'],
-                  'CLIENT_TYPE'=>$type['ID']
-              ]])->fetch();
-              if($numerator){
-                  continue;
-              }
+        foreach ($cityes as $city){
+            foreach ($types as $type){
+                $numerator =  NumeratorAllTable::getlist(['filter'=>[
+                    'CITY_ID'=>$city['ID'],
+                    'CLIENT_TYPE'=>$type['ID']
+                ]])->fetch();
+                if($numerator){
+                    continue;
+                }
 
-              $config = [
-                  Numerator::getType() => [
-                      'name' => 'Город '.$city['NAME'],
-                      'template' => '{NUMBER}',
-                  ],
-                  \Bitrix\Main\Numerator\Generator\RandomNumberGenerator::getType() => [
-                      'length' => '6',
-                  ],
-                  \Bitrix\Main\Numerator\Generator\SequentNumberGenerator::getType() => [
-                      'start' => '1',
-                      'step' => '1',
-                  ],
-                  \Bitrix\Main\Numerator\Generator\PrefixNumberGenerator::getType()  => [
-                      'prefix' => '',
-                  ],
-              ];
-              $numerator = Numerator::create();
-              $numerator->setConfig($config);
-              /** @var \Bitrix\Main\Entity\AddResult $result **/
-              $result = $numerator->save();
+                $config = [
+                    Numerator::getType() => [
+                        'name' => 'Город '.$city['NAME'],
+                        'template' => '{NUMBER}',
+                    ],
+                    \Bitrix\Main\Numerator\Generator\RandomNumberGenerator::getType() => [
+                        'length' => '6',
+                    ],
+                    \Bitrix\Main\Numerator\Generator\SequentNumberGenerator::getType() => [
+                        'start' => '1',
+                        'step' => '1',
+                    ],
+                    \Bitrix\Main\Numerator\Generator\PrefixNumberGenerator::getType()  => [
+                        'prefix' => '',
+                    ],
+                ];
+                $numerator = Numerator::create();
+                $numerator->setConfig($config);
+                /** @var \Bitrix\Main\Entity\AddResult $result **/
+                $result = $numerator->save();
 
-              $num = NumeratorAllTable::add([
-                  'CITY_ID' => $city['ID'],
-                  'NUMERATOR_ID'=>$result->getId(),
-                  'CLIENT_TYPE'=>$type['ID'],
-                  'CURRENT_NUM'=>0
-              ]);
+                $num = NumeratorAllTable::add([
+                    'CITY_ID' => $city['ID'],
+                    'NUMERATOR_ID'=>$result->getId(),
+                    'CLIENT_TYPE'=>$type['ID'],
+                    'CURRENT_NUM'=>0
+                ]);
 
 
-          }
-      }
-      return 'generated';
+            }
+        }
+        return 'generated';
 
     }
     public static function getCityNumerators($query, $nav, \CRestServer $server)
@@ -354,13 +357,25 @@ class MwsNumeratorRest extends IRestService
         ));
 
         $cityes =  [];
-       while($city =  $res->fetch()){
-           $numerator =  NumeratorAllTable::getlist(['filter'=>['CITY_ID'=>$city['ID'],]])->fetchAll();
+        while($city =  $res->fetch()){
+            $realationCity = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+                'filter' => [
+                    'IBLOCK_ID' => $numerator_all['city'],
+                    'SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE'=>$city['ID']
+                ],
+                'select' => [
+                    "ID",
+                    "NAME"
+                ]
+            ));
+            $city['relations'] = $realationCity->fetchAll();
+
+            $numerator =  NumeratorAllTable::getlist(['filter'=>['CITY_ID'=>$city['ID'],]])->fetchAll();
             $city['numerators'] = $numerator;
-           if($city['numerators'] && count($city['numerators']) > 0) {
-               $cityes[] = $city;
-           }
-       }
+            if($city['numerators'] && count($city['numerators']) > 0) {
+                $cityes[] = $city;
+            }
+        }
 
 
 
@@ -420,7 +435,7 @@ class MwsNumeratorRest extends IRestService
         return $numerator;
     }
     public static function createNumeratorOnCity($query, $nav, \CRestServer $server){
-            $city = $query['city_id'];
+        $city = $query['city_id'];
         \Bitrix\Main\Loader::includeModule("iblock");
         \Bitrix\Main\Loader::includeModule('mws.numerator');
         $numerator_all = [
@@ -597,6 +612,12 @@ class MwsNumeratorRest extends IRestService
             ]
         ));
 
+
+
+
+
+
+
         $resl = \Bitrix\Iblock\Iblock::wakeUp($numerator_phone['ops'])->getEntityDataClass()::getList(array(
             'filter' => [
                 'IBLOCK_ID' => $numerator_phone['ops'],
@@ -624,35 +645,50 @@ class MwsNumeratorRest extends IRestService
         $result = [];
 
         while($num = $res->fetch()){
+            $realationCity = \Bitrix\Iblock\Iblock::wakeUp($numerator_phone['city'])->getEntityDataClass()::getList(array(
+                'filter' => [
+                    'IBLOCK_ID' => $numerator_phone['city'],
+                    'SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE'=>$num['ID']
+                ],
+                'select' => [
+                    "ID",
+                    "NAME"
+                ]
+            ));
+                $num['relations'] = $realationCity->fetchAll();
+
             $numerators =  NumeratorPhoneTable::getlist(['filter'=>['CITY_ID'=>$num['ID'],]])->fetchAll();
-
-            foreach($numerators as &$numers){
-
-                if($numers['OPS_TYPE']==15625){
-                    $numers['PREF'] = $num['PREFIX_RU'];
-                    $numers['OPS'] = $opss[$numers['OPS_TYPE']];
-                    $num['numerators'][] =$numers;
+            if($numerators){
+                foreach($numerators as &$numers){
+                    if($numers['OPS_TYPE']==17631){//17631
+                        $numers['PREF'] = $num['PREFIX_RU'];
+                        $numers['OPS'] = $opss[$numers['OPS_TYPE']];
+                        $num['numerators'][] =$numers;
+                    }
+                    if($numers['OPS_TYPE']==17630){//17630
+                        $numers['PREF'] = $num['PREFIX_EN'];
+                        $numers['OPS'] = $opss[$numers['OPS_TYPE']];
+                        $num['numerators'][] =$numers;
+                    }
                 }
-                if($numers['OPS_TYPE']==15624){
-                    $numers['PREF'] = $num['PREFIX_EN'];
-                    $numers['OPS'] = $opss[$numers['OPS_TYPE']];
-                    $num['numerators'][] =$numers;
-                }
+            }
+            $result[] =$num;
+        }
 
+        $lastRES =[];
+        foreach($result as $res ){
+            if($res['numerators'] && !empty($res['numerators'])){
 
+                $lastRES[] =$res;
             }
 
-            $result[] =$num;
         }
 
 
 
 
 
-
-
-
-        return $result;
+        return $lastRES;
     }
 
     public static function setPhoneNumeratorNum($query, $nav, \CRestServer $server)
@@ -778,4 +814,32 @@ class MwsNumeratorRest extends IRestService
 
         return 'generated';
     }
+
+    public static function deleteNumerator($query, $nav, \CRestServer $server)
+    {
+        \Bitrix\Main\Loader::includeModule('mws.numerator');
+        $type = $query['type'];
+        $item = $query['item'];
+
+            if($type == 'all'){
+                foreach($item['numerators'] as $numerator){
+
+                    $delNumAllID = NumeratorAllTable::delete($numerator['ID']);
+                    $delNumAllID = Numerator::delete($numerator['NUMERATOR_ID']);
+                }
+            }else{
+                foreach($item['numerators'] as $numerator){
+
+                    $delNumAllID = NumeratorPhoneTable::delete($numerator['ID']);
+                    $delNumAllID = Numerator::delete($numerator['NUMERATOR_ID']);
+                }
+
+            }
+
+
+
+        return 'ok';
+
+    }
+
 }

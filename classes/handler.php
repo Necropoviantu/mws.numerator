@@ -20,7 +20,7 @@ use Mywebstor\Numerator\Client\NumeratorPhoneTable;
 class MwsHandlerDocs {
     static function _onBeforeProcessDocument($event)
     {
-        $active = Option::get('mws.numerator', 'active_doc_nemerator', '');
+        $active = Option::get('mws.numerator', 'active_doc_numerator', '');
         if($active == 'Y') {
             \Bitrix\Main\Diag\Debug::writeToFile(print_r("Создание", true), "", "_DOC_log.log");
             $application = \Bitrix\Main\Application::getInstance();
@@ -84,7 +84,7 @@ class MwsHandlerDocs {
 
     }
     static function _OnAfterDelete($fields){
-        $active = Option::get('mws.numerator', 'active_doc_nemerator', '');
+        $active = Option::get('mws.numerator', 'active_doc_numerator', '');
         if($active == 'Y') {
             \Bitrix\Main\Diag\Debug::writeToFile(print_r('Удаление', true), "", "_DOC_log.log");
             global $APPLICATION;
@@ -180,17 +180,25 @@ class MwsHandlerDocs {
         \Bitrix\Main\Loader::includeModule('crm');
         \Bitrix\Main\Loader::includeModule('mws.numerator');
         $arErrorsTmp=[];
+        //Bitrix\Main\Diag\Debug::writeToFile(print_r($fields['ID'] , true),"","_Numerator_log.log");
         $entityTypeID = \CCrmOwnerType::Deal;
         $factory = Bitrix\Crm\Service\Container::getInstance()->getFactory($entityTypeID);
         $item = $factory->getItem($fields['ID']);
         $cat = $item->get('CATEGORY_ID'); //воронка
         if($cat != 1) return;
         $stage = $item->get('STAGE_ID');//стадия
-        if($stage != 'C1:PREPARATION') return;
+        if($stage != '1:PREPARATION') return; //C1:FINAL_INVOICEC
+        //\Bitrix\Main\Diag\Debug::writeToFile(print_r("тут" , true),"","_Numerator_log.log");
+        $activeServ = Option::get('mws.numerator', 'active_service_numerator', '');
+        if($activeServ == 'Y') {
+            $doc = self::addNumDog($fields['ID']);
+        }
+        $activePhone = Option::get('mws.numerator', 'active_phone_numerator', '');
+        if($activePhone == 'Y') {
+            $mg = self::addNumPhone($fields['ID']);
+        }
 
 
-        $doc = self::addNumDog($fields['ID']);
-        $mg = self::addNumPhone($fields['ID']);
 
 
     }
@@ -216,8 +224,44 @@ class MwsHandlerDocs {
         $city  = $item->get('UF_CRM_64EDAFBE9651B');//город
         if(!$city)return 0;
 
+        \Bitrix\Main\Diag\Debug::writeToFile(print_r("тут" , true),"","_Numerator_log.log");
+        $numerator_all = [
+            'city' => Option::get('mws.numerator', 'numerator_all_city', ''),
+            'service' => Option::get('mws.numerator', 'numerator_all_service', ''),
+            'type' => Option::get('mws.numerator', 'numerator_all_type', ''),
+        ];
+
+        $res = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+            'filter' => [
+                'IBLOCK_ID' => $numerator_all['city'],
+                'ID' => $city,
+            ],
+            'select' => [
+                "ID",
+                "NAME",
+                "PREFIX_RU"=>"PREFIKS_RU.VALUE",
+                "PREFIX_EN"=>"PREFIKS_EN.VALUE",
+                "REALATED_CITY" =>"SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE"
+
+            ]
+        ));
+        $cityes =  $res->fetch();
+        $cityId = 0;
+        if($cityes["REALATED_CITY"]){
+            $cityId =$cityes["REALATED_CITY"];
+        }else{
+            $cityId=  $cityes['ID'];
+
+
+        }
+
+
+        \Bitrix\Main\Diag\Debug::writeToFile(print_r($cityId , true),"","_Numerator_log.log");
+
+
+
         $numerator =  NumeratorAllTable::getlist(['filter'=>[
-            'CITY_ID'=>  $city,
+            'CITY_ID'=>   $cityId,
             'CLIENT_TYPE'=>$abonType
         ]])->fetch();
         if(!$numerator)return 0;
@@ -229,7 +273,12 @@ class MwsHandlerDocs {
 
         if(!$prefServ) return 0;
 
-        $num = new Mywebstor\Numerator\MwsNumeratorAll($city,$abonType);
+
+        \Bitrix\Main\Diag\Debug::writeToFile(print_r("Сдесь" , true),"","_Numerator_log.log");
+
+
+
+        $num = new Mywebstor\Numerator\MwsNumeratorAll($cityId,$abonType);
 
 
         $item->set('UF_CRM_1727162408',  $prefServ."/".($abonType == 32 ?"ФЛ" : "ЮЛ" )."/".$prefCity."-".   $num->init());
@@ -267,58 +316,6 @@ class MwsHandlerDocs {
         $city  = $item->get('UF_CRM_64EDAFBE9651B');//город
         if(!$city)return 0;
 
-        $numerator =  NumeratorPhoneTable::getlist(['filter'=>[
-            'CITY_ID'=>  $city,
-            'OPS_TYPE'=> $mg
-        ]])->fetch();
-
-
-        if(!$numerator)return 0;
-        $prefCity =  self::getCityPref($city);
-
-        if(!$prefCity) return 0;
-
-
-        $num = new Mywebstor\Numerator\MwsNumeratorPhone($city,$mg);
-
-
-        if($mg == 15625){
-            $item->set('UF_CRM_1739932235',  'МТС/'. $num->init(). '-'.$prefCity['PREFIX_RU'] );
-
-        }
-        if($mg==15624){
-
-            $item->set('UF_CRM_1739932235',  'EU#'.$prefCity['PREFIX_EN']. '-' . $num->init());
-        }
-
-
-
-
-
-
-
-
-        $operation = $factory->getUpdateOperation($item);
-        /*
-        ** После чего указав параметры можно запускать операцию
-        ** Будут приведены некоторые параметры запуска, их больше. Подробности в исходниках
-        */
-        $result = $operation
-            ->disableCheckFields() //Не проверять обязательные поля
-            ->disableCheckAccess() //Не проверять права доступа
-            ->disableAfterSaveActions() //Не запускать события OnAfterCrmLeadAdd
-            ->disableAutomation() //Запускать роботов (по идее должны по умолчанию запускаться)
-            ->disableBizProc() //Запускать бизнес-процессы (по идее должны по умолчанию запускаться)
-            ->launch(); //Запуск
-
-        return 1;
-
-    }
-
-
-    private static function getCity($city){
-        \Bitrix\Main\Loader::includeModule("iblock");
-        \Bitrix\Main\Loader::includeModule('mws.numerator');
         $numerator_all = [
             'city' => Option::get('mws.numerator', 'numerator_all_city', ''),
             'service' => Option::get('mws.numerator', 'numerator_all_service', ''),
@@ -329,18 +326,155 @@ class MwsHandlerDocs {
             'filter' => [
                 'IBLOCK_ID' => $numerator_all['city'],
                 'ID' => $city,
-                "!=PREFIKS_RU.VALUE"=>""
+            ],
+            'select' => [
+                "ID",
+                "NAME",
+                "PREFIX_RU"=>"PREFIKS_RU.VALUE",
+                "PREFIX_EN"=>"PREFIKS_EN.VALUE",
+                "REALATED_CITY" =>"SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE"
+
+            ]
+        ));
+        $cityes =  $res->fetch();
+        $cityId = 0;
+        if($cityes["REALATED_CITY"]){
+            $cityId =$cityes["REALATED_CITY"];
+        }else{
+            $cityId=  $cityes['ID'];
+
+
+        }
+
+
+//
+//        \Bitrix\Main\Diag\Debug::writeToFile(print_r("Мой город" , true),"","_Numerator_log.log");
+//        \Bitrix\Main\Diag\Debug::writeToFile(print_r($cityId , true),"","_Numerator_log.log");
+//
+
+
+
+
+        $numerator =  NumeratorPhoneTable::getlist(['filter'=>[
+            'CITY_ID'=>  $cityId,
+            'OPS_TYPE'=> $mg
+        ]])->fetch();
+
+
+        if(!$numerator)return 0;
+        $prefCity =  self::getCityPref( $cityId);
+
+        if(!$prefCity) return 0;
+
+
+        $num = new Mywebstor\Numerator\MwsNumeratorPhone($cityId,$mg);
+//        \Bitrix\Main\Diag\Debug::writeToFile(print_r($num , true),"","_Numerator_log.log");
+
+        if($mg == 17631){
+            $item->set('UF_CRM_1739932235',  'МТС/'. $num->init(). '-'.$prefCity['PREFIX_RU'] );
+
+        }
+        if($mg==17630){
+
+            $item->set('UF_CRM_1739932235',  'EU#'.$prefCity['PREFIX_EN']. '-' . $num->init());
+        }
+
+
+
+
+
+
+
+        $operation = $factory->getUpdateOperation($item);
+
+        $result = $operation
+            ->disableCheckFields()
+            ->disableCheckAccess()
+            ->disableAfterSaveActions()
+            ->disableAutomation()
+            ->disableBizProc()
+            ->launch();
+
+        return 1;
+
+    }
+
+
+    private static function getCity($city){
+//        \Bitrix\Main\Loader::includeModule("iblock");
+//        \Bitrix\Main\Loader::includeModule('mws.numerator');
+//        $numerator_all = [
+//            'city' => Option::get('mws.numerator', 'numerator_all_city', ''),
+//            'service' => Option::get('mws.numerator', 'numerator_all_service', ''),
+//            'type' => Option::get('mws.numerator', 'numerator_all_type', ''),
+//        ];
+//
+//        $res = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+//            'filter' => [
+//                'IBLOCK_ID' => $numerator_all['city'],
+//                'ID' => $city,
+//                "!=PREFIKS_RU.VALUE"=>""
+//
+//            ],
+//            'select' => [
+//                "ID",
+//                "NAME",
+//                "PREFIX"=>"PREFIKS_RU.VALUE"
+//
+//            ]
+//        ));
+//        $cityes =  $res->fetch();
+//        return $cityes['PREFIX'];
+
+        //New Logic
+        \Bitrix\Main\Loader::includeModule("iblock");
+        \Bitrix\Main\Loader::includeModule('mws.numerator');
+
+        $numerator_all = [
+            'city' => Option::get('mws.numerator', 'numerator_all_city', ''),
+            'service' => Option::get('mws.numerator', 'numerator_all_service', ''),
+            'type' => Option::get('mws.numerator', 'numerator_all_type', ''),
+        ];
+
+        $res = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+            'filter' => [
+                'IBLOCK_ID' => $numerator_all['city'],
+                'ID' => $city,
+
 
             ],
             'select' => [
                 "ID",
                 "NAME",
-                "PREFIX"=>"PREFIKS_RU.VALUE"
+                "PREFIX"=>"PREFIKS_RU.VALUE",
+                "REALATED_CITY" =>"SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE"
 
             ]
         ));
         $cityes =  $res->fetch();
-        return $cityes['PREFIX'];
+        if($cityes["REALATED_CITY"]){
+
+            $resRelated = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+                'filter' => [
+                    'IBLOCK_ID' => $numerator_all['city'],
+                    'ID' => $cityes["REALATED_CITY"],
+                    "!=PREFIKS_RU.VALUE"=>""
+                ],
+                'select' => [
+                    "ID",
+                    "NAME",
+                    "PREFIX"=>"PREFIKS_RU.VALUE"
+                ]
+            ));
+            $cityRelated =  $resRelated->fetch();
+            return $cityRelated['PREFIX'];
+        }else{
+
+           return $cityes['PREFIX'];
+
+
+        }
+
     }
     private static function getCityPref($city){
         \Bitrix\Main\Loader::includeModule("iblock");
@@ -350,7 +484,26 @@ class MwsHandlerDocs {
             'service' => Option::get('mws.numerator', 'numerator_all_service', ''),
             'type' => Option::get('mws.numerator', 'numerator_all_type', ''),
         ];
+//
+//        $res = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+//            'filter' => [
+//                'IBLOCK_ID' => $numerator_all['city'],
+//                'ID' => $city,
+//
+//
+//            ],
+//            'select' => [
+//                "ID",
+//                "NAME",
+//                "PREFIX_RU"=>"PREFIKS_RU.VALUE",
+//                "PREFIX_EN"=>"PREFIKS_EN.VALUE",
+//
+//            ]
+//        ));
+//        $cityes =  $res->fetch();
+//        return $cityes;
 
+        //New logic
         $res = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
             'filter' => [
                 'IBLOCK_ID' => $numerator_all['city'],
@@ -363,11 +516,39 @@ class MwsHandlerDocs {
                 "NAME",
                 "PREFIX_RU"=>"PREFIKS_RU.VALUE",
                 "PREFIX_EN"=>"PREFIKS_EN.VALUE",
+                "REALATED_CITY" =>"SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE"
 
             ]
         ));
         $cityes =  $res->fetch();
-        return $cityes;
+
+        if($cityes["REALATED_CITY"]){
+            $resRelated = \Bitrix\Iblock\Iblock::wakeUp($numerator_all['city'])->getEntityDataClass()::getList(array(
+                'filter' => [
+                    'IBLOCK_ID' => $numerator_all['city'],
+                    'ID' =>$cityes["REALATED_CITY"],
+
+
+                ],
+                'select' => [
+                    "ID",
+                    "NAME",
+                    "PREFIX_RU"=>"PREFIKS_RU.VALUE",
+                    "PREFIX_EN"=>"PREFIKS_EN.VALUE",
+                    "REALATED_CITY" =>"SVYAZANNYY_GOROD_DLYA_NUMERATOROV.IBLOCK_GENERIC_VALUE"
+
+                ]
+            ));
+            $cityRelated =  $resRelated->fetch();
+            return $cityRelated;
+
+
+        }else{
+            return $cityes;
+
+        }
+
+
     }
 
 
@@ -408,6 +589,7 @@ class MwsHandlerDocs {
             return '';
         }
     }
+
 
 
 }

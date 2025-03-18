@@ -25,9 +25,9 @@ class MwsNumeratorAll extends Numerator
         }
 
         $numerator = $this->checkNumerator($this->CITY, $this->TYPE);
-        if( !$numerator && $numerator['ID'] <= 0){
-            $numerator = $this->createNumerator();
-        }
+//        if( !$numerator && $numerator['ID'] <= 0){
+//            $numerator = $this->createNumerator();
+//        }
         $numberGenerator = \Bitrix\Main\Numerator\Numerator::load($numerator['NUMERATOR_ID']);
         $number = $numberGenerator->getNext();
         NumeratorAllTable::update($numerator['ID'],[
